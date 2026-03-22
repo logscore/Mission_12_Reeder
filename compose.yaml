@@ -1,0 +1,7 @@
+﻿services:
+  mission12assignment:
+    image: mission12assignment
+    build:
+      context: .
+      dockerfile: mission12assignment/Dockerfile
+
