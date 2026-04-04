@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from './CartContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+const API_BASE_URL = 'http://localhost:5027/api/books';
+
 interface Book {
   bookID: number;
   title: string;
@@ -22,12 +24,42 @@ interface BooksResponse {
   pageSize: number;
 }
 
+interface BookFormData {
+  bookID: number;
+  title: string;
+  author: string;
+  publisher: string;
+  isbn: string;
+  classification: string;
+  category: string;
+  pageCount: string;
+  price: string;
+}
+
+const emptyForm: BookFormData = {
+  bookID: 0,
+  title: '',
+  author: '',
+  publisher: '',
+  isbn: '',
+  classification: '',
+  category: '',
+  pageCount: '',
+  price: '',
+};
+
 function BookList() {
   const [data, setData] = useState<BooksResponse | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [formData, setFormData] = useState<BookFormData>(emptyForm);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reloadBooksKey, setReloadBooksKey] = useState(0);
 
   const { addToCart, totalItems, totalPrice } = useCart();
   const navigate = useNavigate();
@@ -53,12 +85,22 @@ function BookList() {
     setSearchParams(params);
   };
 
-  // Fetch categories on mount
-  useEffect(() => {
-    fetch('http://localhost:5027/api/books/categories')
+  const loadCategories = () => {
+    fetch(`${API_BASE_URL}/categories`)
       .then((res) => res.json())
       .then((json) => setCategories(json))
       .catch((err) => console.error(err));
+  };
+
+  const resetForm = () => {
+    setFormData(emptyForm);
+    setIsEditing(false);
+    setFormError('');
+  };
+
+  // Fetch categories on mount
+  useEffect(() => {
+    loadCategories();
   }, []);
 
   // Fetch books when params change
@@ -70,7 +112,7 @@ function BookList() {
     if (sortBy) params.set('sortBy', sortBy);
     if (selectedCategory) params.set('category', selectedCategory);
 
-    fetch(`http://localhost:5027/api/books?${params.toString()}`)
+    fetch(`${API_BASE_URL}?${params.toString()}`)
       .then((res) => res.json())
       .then((json) => {
         setData(json);
@@ -80,13 +122,121 @@ function BookList() {
         console.error(err);
         setLoading(false);
       });
-  }, [pageNumber, pageSize, sortBy, selectedCategory]);
+  }, [pageNumber, pageSize, sortBy, selectedCategory, reloadBooksKey]);
 
   const handleAddToCart = (book: Book) => {
     addToCart({ bookID: book.bookID, title: book.title, price: book.price });
     setToastMessage(`"${book.title}" added to cart!`);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEdit = (book: Book) => {
+    setFormData({
+      bookID: book.bookID,
+      title: book.title,
+      author: book.author,
+      publisher: book.publisher,
+      isbn: book.isbn,
+      classification: book.classification,
+      category: book.category,
+      pageCount: String(book.pageCount),
+      price: String(book.price),
+    });
+    setIsEditing(true);
+    setFormError('');
+    setFormSuccess('');
+  };
+
+  const handleDelete = async (bookID: number, title: string) => {
+    const confirmed = window.confirm(`Delete "${title}"?`);
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/${bookID}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Unable to delete book.');
+      }
+
+      setFormSuccess(`Deleted "${title}".`);
+      loadCategories();
+
+      if (data && data.books.length === 1 && pageNumber > 1) {
+        updateParam('page', pageNumber - 1);
+      } else {
+        setReloadBooksKey((current) => current + 1);
+      }
+    } catch (error) {
+      console.error(error);
+      setFormError('Unable to delete the book right now.');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+
+    const bookPayload = {
+      bookID: formData.bookID,
+      title: formData.title.trim(),
+      author: formData.author.trim(),
+      publisher: formData.publisher.trim(),
+      isbn: formData.isbn.trim(),
+      classification: formData.classification.trim(),
+      category: formData.category.trim(),
+      pageCount: Number(formData.pageCount),
+      price: Number(formData.price),
+    };
+
+    if (Object.values(bookPayload).some((value) => value === '')) {
+      setFormError('All fields are required.');
+      return;
+    }
+
+    if (Number.isNaN(bookPayload.pageCount) || Number.isNaN(bookPayload.price)) {
+      setFormError('Page count and price must be valid numbers.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(
+        isEditing ? `${API_BASE_URL}/${bookPayload.bookID}` : API_BASE_URL,
+        {
+          method: isEditing ? 'PUT' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(bookPayload),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Unable to save book.');
+      }
+
+      setFormSuccess(isEditing ? 'Book updated successfully.' : 'Book added successfully.');
+      resetForm();
+      loadCategories();
+      setReloadBooksKey((current) => current + 1);
+    } catch (error) {
+      console.error(error);
+      setFormError('Unable to save the book right now.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const pageNumbers = [];
@@ -115,6 +265,64 @@ function BookList() {
               onClick={() => setShowToast(false)}
             ></button>
           </div>
+        </div>
+      </div>
+
+      <div className="card mb-4">
+        <div className="card-header fw-bold">
+          {isEditing ? 'Update Book' : 'Add New Book'}
+        </div>
+        <div className="card-body">
+          {formError && <div className="alert alert-danger">{formError}</div>}
+          {formSuccess && <div className="alert alert-success">{formSuccess}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div className="row g-3">
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">Title</label>
+                <input className="form-control" name="title" value={formData.title} onChange={handleInputChange} />
+              </div>
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">Author</label>
+                <input className="form-control" name="author" value={formData.author} onChange={handleInputChange} />
+              </div>
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">Publisher</label>
+                <input className="form-control" name="publisher" value={formData.publisher} onChange={handleInputChange} />
+              </div>
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">ISBN</label>
+                <input className="form-control" name="isbn" value={formData.isbn} onChange={handleInputChange} />
+              </div>
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">Classification</label>
+                <input className="form-control" name="classification" value={formData.classification} onChange={handleInputChange} />
+              </div>
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">Category</label>
+                <input className="form-control" name="category" value={formData.category} onChange={handleInputChange} />
+              </div>
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">Page Count</label>
+                <input className="form-control" name="pageCount" type="number" min="1" value={formData.pageCount} onChange={handleInputChange} />
+              </div>
+              <div className="col-md-6 col-lg-3">
+                <label className="form-label">Price</label>
+                <input className="form-control" name="price" type="number" min="0" step="0.01" value={formData.price} onChange={handleInputChange} />
+              </div>
+            </div>
+
+            <div className="d-flex gap-2 mt-3">
+              <button className="btn btn-primary" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Saving...' : isEditing ? 'Update Book' : 'Add Book'}
+              </button>
+              {isEditing && (
+                <button className="btn btn-outline-secondary" type="button" onClick={resetForm}>
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+          </form>
         </div>
       </div>
 
@@ -187,12 +395,26 @@ function BookList() {
                       <td>{book.pageCount}</td>
                       <td>${book.price.toFixed(2)}</td>
                       <td>
-                        <button
-                          className="btn btn-success btn-sm"
-                          onClick={() => handleAddToCart(book)}
-                        >
-                          Add to Cart
-                        </button>
+                        <div className="d-flex gap-2">
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={() => handleAddToCart(book)}
+                          >
+                            Add to Cart
+                          </button>
+                          <button
+                            className="btn btn-warning btn-sm"
+                            onClick={() => handleEdit(book)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleDelete(book.bookID, book.title)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -35,6 +35,7 @@ function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<BookList />} />
+          <Route path="/adminbooks" element={<BookList />} />
           <Route path="/cart" element={<CartPage />} />
         </Routes>
       </CartProvider>
