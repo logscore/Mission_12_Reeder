@@ -7,8 +7,14 @@ services:
         VITE_API_URL: ${VITE_API_URL}
     ports:
       - "3900:3000"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "await fetch('http://localhost:3000')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   backend:
     build:
@@ -16,3 +22,8 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "5027:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/books/categories"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
