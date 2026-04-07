@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using mission12assignment.Models;
+using backend.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,7 +19,6 @@ var app = builder.Build();
 
 app.UseCors("AllowReactApp");
 
-app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthorization();
 

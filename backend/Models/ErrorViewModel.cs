@@ -1,4 +1,4 @@
-namespace mission12assignment.Models;
+namespace backend.Models;
 
 public class ErrorViewModel
 {

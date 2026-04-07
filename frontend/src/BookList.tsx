@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from './CartContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const API_BASE_URL = 'http://localhost:5027/api/books';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/books`;
 
 interface Book {
   bookID: number;

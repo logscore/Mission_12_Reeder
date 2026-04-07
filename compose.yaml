@@ -1,7 +1,18 @@
-﻿services:
-  mission12assignment:
-    image: mission12assignment
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  backend:
     build:
       context: .
-      dockerfile: mission12assignment/Dockerfile
-
+      dockerfile: backend/Dockerfile
+    ports:
+      - "5027:8080"

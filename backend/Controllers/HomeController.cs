@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using mission12assignment.Models;
+using backend.Models;
 
-namespace mission12assignment.Controllers;
+namespace backend.Controllers;
 
 public class HomeController : Controller
 {

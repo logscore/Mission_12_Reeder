@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace mission12assignment.Models;
+namespace backend.Models;
 
 public class BookstoreContext : DbContext
 {
